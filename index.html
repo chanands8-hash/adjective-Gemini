@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>形容詞消消樂 3D Pro</title>
+    <!-- 引入 Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
+
+        :root {
+            --primary: #e11d48;
+            --primary-light: #fb7185;
+            --bg-menu: linear-gradient(160deg, #fef9ef 0%, #fdf2f8 30%, #eef7ff 70%, #f0fdf4 100%);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+            background: #fdf2f8;
+            color: #1e1b4b;
+        }
+
+        /* ===== 背景與裝飾 ===== */
+        #bg {
+            position: fixed; inset: 0; z-index: 0; transition: background 0.8s ease;
+        }
+        .bg-menu { background: var(--bg-menu); }
+        .bg-lv1 { background: linear-gradient(160deg, #f0fdf4 0%, #dcfce7 100%); }
+        .bg-lv2 { background: linear-gradient(160deg, #eff6ff 0%, #dbeafe 100%); }
+        .bg-lv3 { background: linear-gradient(160deg, #fdf2f8 0%, #fce7f3 100%); }
+        .bg-lv4 { background: linear-gradient(160deg, #fff7ed 0%, #ffedd5 100%); }
+        .bg-lv5 { background: linear-gradient(160deg, #faf5ff 0%, #f3e8ff 100%); }
+
+        /* ===== 主容器 ===== */
+        .wrap {
+            position: relative; z-index: 10; max-width: 500px; margin: 0 auto;
+            padding: 15px; display: flex; flex-direction: column; height: 100vh;
+        }
+
+        .screen { display: none; animation: fadeIn 0.4s ease both; flex: 1; flex-direction: column; }
+        .screen.active { display: flex; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ===== 小兔子吉祥物 ===== */
+        .bunny-box {
+            display: flex; justify-content: center; align-items: flex-end; gap: 10px;
+            margin-bottom: 5px; min-height: 65px; flex-shrink: 0;
+        }
+        .bunny {
+            width: 60px; height: 60px; background: linear-gradient(145deg, #fff, #fecdd3);
+            border-radius: 50%; position: relative; box-shadow: 0 5px 15px rgba(225, 29, 72, 0.1);
+            animation: hop 3s infinite ease-in-out;
+        }
+        @keyframes hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        .bunny::before, .bunny::after { 
+            content: ''; position: absolute; top: -20px; width: 14px; height: 28px;
+            background: #fecdd3; border-radius: 50%; border: 2px solid #fff;
+        }
+        .bunny::before { left: 8px; transform: rotate(-15deg); }
+        .bunny::after { right: 8px; transform: rotate(15deg); }
+        
+        .eyes { position: absolute; top: 35%; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; }
+        .eye { width: 7px; height: 7px; background: #312e81; border-radius: 50%; }
+        .nose { position: absolute; top: 55%; left: 50%; transform: translateX(-50%); width: 5px; height: 3px; background: #fb7185; border-radius: 50%; }
+
+        .speech {
+            background: rgba(255,255,255,0.9); padding: 8px 12px; border-radius: 15px;
+            font-size: 0.85rem; font-weight: bold; color: #be185d;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.05); position: relative;
+            max-width: 200px; line-height: 1.4; backdrop-filter: blur(5px);
+        }
+        .speech::after {
+            content: ''; position: absolute; left: -8px; top: 50%; transform: translateY(-50%);
+            border: 8px solid transparent; border-right-color: rgba(255,255,255,0.9);
+        }
+
+        /* ===== 頂部資訊 ===== */
+        .header { text-align: center; margin-bottom: 15px; }
+        .header h1 { font-size: 2rem; font-weight: 900; color: #be185d; letter-spacing: 2px; }
+        
+        .stats-bar {
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(255,255,255,0.7); backdrop-filter: blur(5px);
+            padding: 8px 15px; border-radius: 15px; margin-bottom: 5px;
+            font-weight: bold; font-size: 0.9rem; border: 1px solid white; flex-shrink: 0;
+        }
+        .stars { color: #fbbf24; display: flex; gap: 2px; }
+
+        /* ===== 答題區域 (2D Overlay) ===== */
+        .answer-zone {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            background: rgba(255,255,255,0.6); border-radius: 20px;
+            padding: 8px; margin-bottom: 8px; min-height: 75px;
+            border: 2px dashed rgba(190,24,93,0.3); flex-shrink: 0;
+            backdrop-filter: blur(5px); z-index: 20; position: relative;
+        }
+        .slot {
+            width: 60px; height: 60px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.8rem; font-weight: 900; transition: all 0.3s;
+            background: rgba(255,255,255,0.4); border: 2px solid transparent;
+        }
+        .slot.filled { background: white; border-color: #fda4af; box-shadow: 0 4px 10px rgba(0,0,0,0.1); transform: scale(1.05); }
+        
+        .result-box {
+            min-width: 80px; height: 60px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.6rem; font-weight: 900; background: rgba(0,0,0,0.05);
+            transition: all 0.3s;
+        }
+        .result-box.correct { background: var(--primary); color: white; transform: scale(1.1); box-shadow: 0 5px 15px rgba(225, 29, 72, 0.3); }
+        .result-box.wrong { background: #fee2e2; color: #ef4444; }
+
+        /* ===== 3D Canvas 容器 ===== */
+        #canvas-container {
+            flex: 1; width: 100%; position: relative;
+            border-radius: 20px; overflow: hidden;
+            margin-bottom: 10px;
+            /* box-shadow: inset 0 0 20px rgba(0,0,0,0.05); */
+        }
+        #game-3d-canvas {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            outline: none; touch-action: none;
+        }
+
+        /* ===== 按鈕 ===== */
+        .btns { display: flex; gap: 10px; justify-content: center; padding-bottom: 10px; flex-shrink: 0; z-index: 20; position: relative; }
+        .btn {
+            padding: 16px 30px; border-radius: 50px; border: none; font-size: 1.1rem;
+            font-family: inherit; font-weight: bold; cursor: pointer;
+            transition: all 0.2s; box-shadow: 0 4px 0 rgba(0,0,0,0.1);
+        }
+        .btn:active { transform: translateY(2px); box-shadow: none; }
+        .btn-main { background: var(--primary); color: white; }
+        .btn-sub { background: white; color: var(--primary); border: 1px solid #fecdd3; }
+        .btn-hint { background: #fbbf24; color: white; }
+        .btn-audio { background: #3b82f6; color: white; border-radius: 50%; width: 45px; height: 45px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+
+        /* ===== 選關頁面 ===== */
+        .level-grid {
+            display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 20px;
+            overflow-y: auto; padding-bottom: 20px;
+        }
+        .level-btn {
+            background: white; padding: 20px; border-radius: 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            border: 2px solid transparent; transition: all 0.3s; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.04);
+        }
+        .level-btn:hover { border-color: var(--primary-light); transform: scale(1.02); }
+        .level-btn .info h3 { font-size: 1.2rem; color: #be185d; margin-bottom: 4px; }
+        .level-btn .info p { font-size: 0.8rem; color: #94a3b8; }
+        .level-btn .badge { 
+            background: #fdf2f8; padding: 5px 12px; border-radius: 20px; 
+            font-size: 0.75rem; font-weight: bold; color: #be185d;
+        }
+
+        /* ===== 彈窗 ===== */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);
+            z-index: 1000; display: none; align-items: center; justify-content: center; padding: 20px;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: white; border-radius: 30px; padding: 30px; width: 100%; max-width: 350px;
+            text-align: center; animation: modalIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        @keyframes modalIn { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .modal h2 { color: #be185d; font-size: 1.8rem; margin-bottom: 10px; }
+        .modal p { color: #64748b; margin-bottom: 20px; }
+        .medal { font-size: 4rem; margin-bottom: 15px; display: block; }
+
+        /* 進度條 */
+        .progress-container { width: 100%; height: 8px; background: rgba(0,0,0,0.05); border-radius: 10px; margin-bottom: 5px; overflow: hidden; flex-shrink: 0; z-index: 20; position: relative;}
+        .progress-bar { height: 100%; background: var(--primary-light); width: 0%; transition: width 0.5s ease; }
+    </style>
+</head>
+<body>
+
+<div id="bg" class="bg-menu"></div>
+
+<div class="wrap">
+    <!-- 選關頁面 -->
+    <div id="screen-menu" class="screen active">
+        <div class="header" style="margin-top: 20px;">
+            <div class="bunny-box">
+                <div class="bunny"><div class="eyes"><div class="eye"></div><div class="eye"></div></div><div class="nose"></div></div>
+                <div class="speech">歡迎來到 3D 廣東話語音版！<br>記得開聲喔！🔊</div>
+            </div>
+            <h1>形容詞消消樂 3D</h1>
+            <p style="color: #f472b6; font-size: 0.9rem;">拼湊詞語，聽發音，消除方塊！</p>
+        </div>
+
+        <div class="level-grid" id="level-list">
+            <!-- 由 JS 動態生成 -->
+        </div>
+    </div>
+
+    <!-- 遊戲頁面 -->
+    <div id="screen-game" class="screen">
+        <div class="stats-bar">
+            <span id="level-title">關卡 1</span>
+            <div class="stars" id="game-stars">⭐⭐⭐</div>
+            <span>錯誤: <span id="error-count">0</span></span>
+        </div>
+
+        <div class="bunny-box">
+            <div class="bunny" style="width:50px; height:50px;"><div class="eyes"><div class="eye"></div><div class="eye"></div></div><div class="nose"></div></div>
+            <div class="speech" id="game-msg">點擊方塊聽發音，找出兩個字拼成形容詞！</div>
+        </div>
+
+        <div class="answer-zone">
+            <div class="slot" id="slot-1">?</div>
+            <div style="font-size: 1.5rem; color: #be185d; font-weight: 900;">+</div>
+            <div class="slot" id="slot-2">?</div>
+            <div style="font-size: 1.5rem; color: #be185d; font-weight: 900;">=</div>
+            <div class="result-box" id="result-box">??</div>
+        </div>
+
+        <div class="progress-container">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+
+        <!-- 3D 遊戲區域 -->
+        <div id="canvas-container">
+            <canvas id="game-3d-canvas"></canvas>
+        </div>
+
+        <div class="btns">
+            <button class="btn btn-sub" onclick="exitGame()">返回</button>
+            <button class="btn btn-hint" onclick="useHint()">提示</button>
+            <button class="btn btn-main" onclick="checkMatch()">確認組合</button>
+        </div>
+    </div>
+</div>
+
+<!-- 結算彈窗 -->
+<div class="modal-overlay" id="win-modal">
+    <div class="modal">
+        <span class="medal" id="modal-icon">🏆</span>
+        <h2 id="modal-title">太棒了！</h2>
+        <p id="modal-body">你完成了這一關！</p>
+        <div class="btns">
+            <button class="btn btn-sub" onclick="closeModal()">返回菜單</button>
+            <button class="btn btn-main" id="next-level-btn">下一關</button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+    // --- 遊戲數據 ---
+    const ADJECTIVES = {
+        1: { name: "基礎篇", words: ["開心", "快樂", "漂亮", "可愛", "好吃", "乾淨", "巨大", "細小"], theme: "bg-lv1" },
+        2: { name: "心情與感官", words: ["溫暖", "涼快", "明亮", "黑暗", "高興", "害怕", "勇敢", "聰明"], theme: "bg-lv2" },
+        3: { name: "環境與特徵", words: ["美麗", "善良", "整齊", "骯髒", "甜蜜", "辛苦", "安靜", "熱鬧"], theme: "bg-lv3" },
+        4: { name: "質地與性格", words: ["柔軟", "堅硬", "輕便", "笨重", "活潑", "文靜", "寬廣", "狹窄"], theme: "bg-lv4" },
+        5: { name: "狀態與感官", words: ["鮮豔", "灰暗", "鋒利", "圓滑", "迅速", "緩慢", "涼爽", "炎熱"], theme: "bg-lv5" }
+    };
+
+    // 顏色配置 (3D方塊)
+    const TILE_COLORS = [
+        0xffffff, // 基礎底色
+        0xfff1f2, // 淡紅
+        0xeff6ff, // 淡藍
+        0xf0fdf4, // 淡綠
+        0xfffbeb  // 淡黃
+    ];
+    const TEXT_COLORS = ['#be185d', '#1d4ed8', '#15803d', '#b45309'];
+
+    // --- 狀態管理 ---
+    let currentUser = null;
+    let userProgress = {};
+    let currentLevel = 1;
+    let selectedTiles = []; // 儲存 3D Object 參考
+    let matchedCount = 0;
+    let errors = 0;
+    let gameData = [];
+    let isProcessing = false;
+    let isGameRunning = false;
+
+    // --- Firebase 初始化 ---
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+    let app, db, auth;
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'adj-elim-3d-pro';
+
+    try {
+        app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+    } catch (e) { console.log("Firebase not configured for local dev"); }
+
+    async function initAuth() {
+        if (!auth) { renderLevelList(); return; }
+        await signInAnonymously(auth);
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                await loadProgress();
+                renderLevelList();
+            }
+        });
+    }
+
+    async function loadProgress() {
+        if (!currentUser || !db) return;
+        try {
+            const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'progress', 'main');
+            const snap = await getDoc(docRef);
+            if (snap.exists()) { userProgress = snap.data(); }
+        } catch (e) { console.error(e); }
+    }
+
+    async function saveProgress(level, errorCount) {
+        if (!currentUser || !db) return;
+        const currentBest = userProgress[`lv${level}`]?.bestErrors ?? 999;
+        if (errorCount < currentBest) {
+            userProgress[`lv${level}`] = { bestErrors: errorCount, completed: true };
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'progress', 'main');
+                await setDoc(docRef, userProgress);
+                renderLevelList();
+            } catch (e) { console.error(e); }
+        }
+    }
+
+    // --- 廣東話語音 (Web Speech API) ---
+    function speakCantonese(text) {
+        if (!window.speechSynthesis) return;
+        window.speechSynthesis.cancel(); // 停止先前的發音
+        const msg = new SpeechSynthesisUtterance(text);
+        msg.lang = 'zh-HK'; // 設定為廣東話 (香港)
+        msg.rate = 0.9;     // 稍微放慢語速讓小孩聽清楚
+        msg.pitch = 1.1;    // 稍微調高音調，聽起來更有活力
+        window.speechSynthesis.speak(msg);
+    }
+
+    // --- Three.js 3D 引擎設置 ---
+    const canvasContainer = document.getElementById('canvas-container');
+    const canvas = document.getElementById('game-3d-canvas');
+    let scene, camera, renderer, raycaster, pointer, plane;
+    let tiles = []; // 儲存所有 3D 方塊
+    let particles = []; // 3D 爆炸粒子
+    let mouseX = 0, mouseY = 0;
+    let currentGridConfig = null; // 用來儲存當前的網格設定
+
+    function init3D() {
+        scene = new THREE.Scene();
+        // 增加霧效融入背景
+        scene.fog = new THREE.FogExp2(0xffffff, 0.015);
+
+        // 相機 (透視)
+        const aspect = canvasContainer.clientWidth / canvasContainer.clientHeight;
+        camera = new THREE.PerspectiveCamera(50, aspect, 0.1, 1000);
+        camera.position.set(0, 0, 8); // 將由 updateCameraFit 自動接管
+        camera.lookAt(0, 0, 0);
+
+        // 渲染器
+        renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+        renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        // 燈光
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(0, 5, 8);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        scene.add(dirLight);
+
+        // 隱形底板 (接收陰影，改為放置在方塊後方)
+        const planeGeo = new THREE.PlaneGeometry(30, 30);
+        const planeMat = new THREE.ShadowMaterial({ opacity: 0.15 });
+        plane = new THREE.Mesh(planeGeo, planeMat);
+        plane.position.z = -1;
+        plane.receiveShadow = true;
+        scene.add(plane);
+
+        raycaster = new THREE.Raycaster();
+        pointer = new THREE.Vector2();
+
+        // 事件監聽
+        canvas.addEventListener('pointerdown', onPointerDown);
+        canvasContainer.addEventListener('pointermove', (e) => {
+            const rect = canvasContainer.getBoundingClientRect();
+            mouseX = (e.clientX - rect.left) / rect.width * 2 - 1;
+            mouseY = -(e.clientY - rect.top) / rect.height * 2 + 1;
+        });
+
+        window.addEventListener('resize', onWindowResize);
+    }
+
+    // 智能適應螢幕大小，將方塊放到最大
+    function updateCameraFit() {
+        if (!camera || !canvasContainer || !currentGridConfig) return;
+        const width = canvasContainer.clientWidth;
+        const height = canvasContainer.clientHeight;
+        if (width === 0 || height === 0) return;
+
+        const aspect = width / height;
+        camera.aspect = aspect;
+        
+        const { boardWidth, boardHeight } = currentGridConfig;
+        
+        const padding = 1.05; // 大幅縮小邊距 (5%)，讓方塊塞滿畫面
+        
+        const fovRad = (camera.fov * Math.PI) / 180;
+        const cameraZ_H = (boardHeight / 2) / Math.tan(fovRad / 2) * padding;
+        const cameraZ_W = (boardWidth / 2) / (Math.tan(fovRad / 2) * aspect) * padding;
+        
+        // 選擇較大的 Z 值確保不會被切斷
+        camera.position.z = Math.max(cameraZ_H, cameraZ_W);
+        camera.position.y = 0;
+        camera.position.x = 0;
+        
+        if (plane) {
+            plane.scale.set(camera.position.z * 2, camera.position.z * 2, 1);
+        }
+        
+        camera.updateProjectionMatrix();
+        renderer.setSize(width, height);
+    }
+
+    function onWindowResize() {
+        updateCameraFit();
+    }
+
+    // 建立帶有文字的材質
+    function createTileMaterial(char, colorIdx) {
+        // 解析度增加確保方塊變大後依然清晰
+        const cWidth = 512;
+        const cHeight = 512;
+        const txtCanvas = document.createElement('canvas');
+        txtCanvas.width = cWidth;
+        txtCanvas.height = cHeight;
+        const ctx = txtCanvas.getContext('2d');
+
+        // 背景
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, cWidth, cHeight);
+        
+        // 邊框
+        ctx.strokeStyle = TEXT_COLORS[colorIdx];
+        ctx.lineWidth = 25;
+        ctx.strokeRect(15, 15, cWidth-30, cHeight-30);
+
+        // 文字放大
+        ctx.fillStyle = TEXT_COLORS[colorIdx];
+        ctx.font = 'bold 320px "Noto Sans TC", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(char, cWidth / 2, cHeight / 2 + 25); // 微調垂直置中
+
+        const texture = new THREE.CanvasTexture(txtCanvas);
+        texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+        const sideColor = TILE_COLORS[colorIdx + 1] || 0xffffff;
+        
+        // 創建材質陣列 (右, 左, 上, 下, 前, 後)
+        const materials = [
+            new THREE.MeshStandardMaterial({ color: sideColor, roughness: 0.3, metalness: 0.1 }),
+            new THREE.MeshStandardMaterial({ color: sideColor, roughness: 0.3, metalness: 0.1 }),
+            new THREE.MeshStandardMaterial({ color: sideColor }), 
+            new THREE.MeshStandardMaterial({ color: sideColor }),
+            new THREE.MeshStandardMaterial({ map: texture, roughness: 0.4 }), // 前方面 (文字)
+            new THREE.MeshStandardMaterial({ color: sideColor }),
+        ];
+        return materials;
+    }
+
+    // 建立 3D 網格
+    function build3DBoard() {
+        // 清除舊方塊
+        tiles.forEach(t => scene.remove(t));
+        tiles = [];
+
+        // 根據螢幕比例決定列數，手機直向改為 3 列，讓方塊可以更大！
+        const aspect = canvasContainer.clientWidth / canvasContainer.clientHeight;
+        const cols = aspect < 0.85 ? 3 : 4; 
+        const rows = Math.ceil(gameData.length / cols);
+        
+        const size = 2.6; // 基礎尺寸再加大
+        const gap = 0.25; // 緊湊間距
+        
+        // 儲存設定供相機縮放計算
+        currentGridConfig = {
+            cols, rows, size, gap,
+            boardWidth: cols * size + (cols - 1) * gap,
+            boardHeight: rows * size + (rows - 1) * gap
+        };
+
+        const startY = ((rows - 1) * (size + gap)) / 2;
+        const geometry = new THREE.BoxGeometry(size, size, 0.4);
+
+        gameData.forEach((item, index) => {
+            const row = Math.floor(index / cols);
+            const col = index % cols;
+            
+            // 計算該列有幾個方塊，用來置中最後一列
+            const itemsInThisRow = (row === rows - 1) ? (gameData.length % cols || cols) : cols;
+            const startX = -((itemsInThisRow - 1) * (size + gap)) / 2;
+
+            const x = startX + col * (size + gap);
+            const y = startY - row * (size + gap);
+            const z = 0;
+
+            const materials = createTileMaterial(item.char, item.colorIdx);
+            const mesh = new THREE.Mesh(geometry, materials);
+            
+            mesh.position.set(x, y + 10, z); // 初始在空中，準備掉落
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+
+            // 自定義屬性用於遊戲邏輯與動畫
+            mesh.userData = {
+                id: index,
+                char: item.char,
+                pairId: item.pairId,
+                targetPos: new THREE.Vector3(x, y, z),
+                targetRot: new THREE.Euler(0, 0, 0),
+                baseX: x,
+                baseZ: z,
+                state: 'idle', // idle, selected, matched, error
+                shakeTimer: 0
+            };
+
+            scene.add(mesh);
+            tiles.push(mesh);
+        });
+    }
+
+    // --- 3D 互動邏輯 ---
+    function onPointerDown(event) {
+        if (!isGameRunning || isProcessing) return;
+
+        const rect = canvas.getBoundingClientRect();
+        pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+        raycaster.setFromCamera(pointer, camera);
+        const intersects = raycaster.intersectObjects(tiles);
+
+        if (intersects.length > 0) {
+            const clickedTile = intersects[0].object;
+            handleTileClick(clickedTile);
+        }
+    }
+
+    function handleTileClick(tile) {
+        if (tile.userData.state === 'matched') return;
+
+        // 播放該字的廣東話發音
+        speakCantonese(tile.userData.char);
+
+        // 如果已經被選中，則取消選中
+        if (tile.userData.state === 'selected') {
+            tile.userData.state = 'idle';
+            tile.userData.targetPos.z = tile.userData.baseZ;
+            selectedTiles = selectedTiles.filter(t => t !== tile);
+            updateSlotsUI();
+            return;
+        }
+
+        // 最多選兩個
+        if (selectedTiles.length < 2) {
+            tile.userData.state = 'selected';
+            tile.userData.targetPos.z = tile.userData.baseZ + 0.9; // 往前浮起幅度
+            selectedTiles.push(tile);
+            updateSlotsUI();
+
+            // 自動檢查配對
+            if (selectedTiles.length === 2) {
+                setTimeout(checkMatch, 400); // 稍微延遲讓動畫跑完
+            }
+        }
+    }
+
+    // 產生 3D 爆炸粒子
+    function createExplosion(pos) {
+        const particleGeo = new THREE.BoxGeometry(0.15, 0.15, 0.15);
+        const particleMat = new THREE.MeshBasicMaterial({ color: 0xe11d48 });
+        
+        for (let i = 0; i < 15; i++) {
+            const mesh = new THREE.Mesh(particleGeo, particleMat);
+            mesh.position.copy(pos);
+            mesh.userData = {
+                velocity: new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.2,
+                    Math.random() * 0.2 + 0.1,
+                    (Math.random() - 0.5) * 0.2
+                ),
+                life: 1.0
+            };
+            scene.add(mesh);
+            particles.push(mesh);
+        }
+    }
+
+    // 3D 動畫循環
+    function animate() {
+        requestAnimationFrame(animate); // 確保迴圈不斷掉
+        if (!isGameRunning) return;
+
+        // 相機微小跟隨滑鼠移動 (Parallax effect) 縮小移動幅度避免出界
+        camera.position.x += (mouseX * 0.5 - camera.position.x) * 0.05;
+        camera.position.y += (mouseY * 0.5 - camera.position.y) * 0.05;
+        camera.lookAt(0, 0, 0);
+
+        // 更新方塊動畫
+        tiles.forEach(tile => {
+            if (tile.userData.state === 'error') {
+                // 震動動畫
+                tile.userData.shakeTimer += 0.4;
+                tile.position.x = tile.userData.baseX + Math.sin(tile.userData.shakeTimer) * 0.15;
+                if (tile.userData.shakeTimer > Math.PI * 4) {
+                    tile.userData.state = 'idle';
+                    tile.userData.targetPos.z = tile.userData.baseZ;
+                    tile.position.x = tile.userData.baseX; // 復位
+                }
+            } else if (tile.userData.state === 'matched') {
+                // 飛向中心並縮小
+                tile.position.lerp(tile.userData.targetPos, 0.15);
+                tile.scale.lerp(new THREE.Vector3(0,0,0), 0.1);
+            } else {
+                // 平滑移動到目標位置 (包含浮起)
+                tile.position.lerp(tile.userData.targetPos, 0.15);
+            }
+            // 平滑旋轉
+            // tile.rotation.x += (tile.userData.targetRot.x - tile.rotation.x) * 0.15;
+            // tile.rotation.z += (tile.userData.targetRot.z - tile.rotation.z) * 0.15;
+        });
+
+        // 更新粒子
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            p.position.add(p.userData.velocity);
+            p.userData.velocity.y -= 0.01; // 重力
+            p.scale.multiplyScalar(0.92);
+            p.userData.life -= 0.02;
+            if (p.userData.life <= 0) {
+                scene.remove(p);
+                particles.splice(i, 1);
+            }
+        }
+
+        renderer.render(scene, camera);
+    }
+
+    // --- 遊戲邏輯 ---
+    function renderLevelList() {
+        const list = document.getElementById('level-list');
+        list.innerHTML = '';
+        Object.keys(ADJECTIVES).forEach(lv => {
+            const data = ADJECTIVES[lv];
+            const prog = userProgress[`lv${lv}`];
+            const btn = document.createElement('div');
+            btn.className = 'level-btn';
+            btn.onclick = () => startLevel(parseInt(lv));
+            
+            btn.innerHTML = `
+                <div class="info">
+                    <h3>關卡 ${lv}: ${data.name}</h3>
+                    <p>${data.words.length} 個形容詞</p>
+                </div>
+                <div>
+                    ${prog ? `<span class="badge">最佳錯誤: ${prog.bestErrors}</span>` : '<span class="badge" style="background:#f1f5f9; color:#94a3b8;">未挑戰</span>'}
+                </div>
+            `;
+            list.appendChild(btn);
+        });
+    }
+
+    window.startLevel = function(lv) {
+        currentLevel = lv;
+        errors = 0;
+        matchedCount = 0;
+        selectedTiles = [];
+        const data = ADJECTIVES[lv];
+        
+        // 準備洗牌數據
+        gameData = [];
+        data.words.forEach((word, idx) => {
+            const cIdx = idx % 4;
+            gameData.push({ char: word[0], pairId: idx, colorIdx: cIdx });
+            gameData.push({ char: word[1], pairId: idx, colorIdx: cIdx });
+        });
+        gameData.sort(() => Math.random() - 0.5);
+
+        // UI 初始化
+        document.getElementById('bg').className = `bg ${data.theme}`;
+        document.getElementById('level-title').textContent = `關卡 ${lv}: ${data.name}`;
+        document.getElementById('error-count').textContent = '0';
+        document.getElementById('progress-bar').style.width = '0%';
+        document.getElementById('game-msg').textContent = '點擊方塊聽發音，找出兩個字拼成形容詞！';
+        updateStars();
+        updateSlotsUI();
+
+        showScreen('screen-game');
+
+        // 等待一瞬確保佈局完成後，初始化相機距離與3D
+        setTimeout(() => {
+            isGameRunning = true; // 必須先將遊戲狀態設為 true，否則動畫引擎唔會畫圖
+            if (!scene) {
+                init3D();
+                animate(); // 啟動 3D 渲染
+            }
+            build3DBoard();
+            updateCameraFit(); // 自動充滿螢幕
+        }, 50);
+    }
+
+    function updateSlotsUI() {
+        const s1 = document.getElementById('slot-1');
+        const s2 = document.getElementById('slot-2');
+        const res = document.getElementById('result-box');
+
+        s1.textContent = selectedTiles[0] ? selectedTiles[0].userData.char : '?';
+        s1.className = selectedTiles[0] ? 'slot filled' : 'slot';
+        
+        s2.textContent = selectedTiles[1] ? selectedTiles[1].userData.char : '?';
+        s2.className = selectedTiles[1] ? 'slot filled' : 'slot';
+
+        if (selectedTiles.length === 2) {
+            res.textContent = selectedTiles[0].userData.char + selectedTiles[1].userData.char;
+        } else {
+            res.textContent = '??';
+            res.className = 'result-box';
+        }
+    }
+
+    window.checkMatch = async function() {
+        if (selectedTiles.length !== 2 || isProcessing) return;
+        isProcessing = true;
+
+        const tile1 = selectedTiles[0];
+        const tile2 = selectedTiles[1];
+        const resBox = document.getElementById('result-box');
+        const word = tile1.userData.char + tile2.userData.char;
+
+        if (tile1.userData.pairId === tile2.userData.pairId) {
+            // 成功配對
+            matchedCount++;
+            resBox.className = 'result-box correct';
+            document.getElementById('game-msg').textContent = `太棒了！「${word}」配對成功！`;
+            
+            // 播放完整形容詞廣東話發音
+            speakCantonese(word);
+            
+            // 3D 飛入中心特效 (根據相機位置決定飛向多近)
+            tile1.userData.state = 'matched';
+            tile2.userData.state = 'matched';
+            const flyZ = camera.position.z - 4;
+            tile1.userData.targetPos = new THREE.Vector3(0, 0, flyZ);
+            tile2.userData.targetPos = new THREE.Vector3(0, 0, flyZ);
+
+            setTimeout(() => {
+                // 爆炸並移除
+                createExplosion(tile1.position);
+                scene.remove(tile1);
+                scene.remove(tile2);
+            }, 300);
+
+            updateProgressBar();
+            
+            setTimeout(() => {
+                selectedTiles = [];
+                updateSlotsUI();
+                resBox.className = 'result-box';
+                isProcessing = false;
+                if (matchedCount === ADJECTIVES[currentLevel].words.length) {
+                    gameWin();
+                }
+            }, 800);
+
+        } else {
+            // 失敗配對
+            errors++;
+            document.getElementById('error-count').textContent = errors;
+            resBox.className = 'result-box wrong';
+            document.getElementById('game-msg').textContent = `哎呀，「${word}」拼不起來喔。`;
+            updateStars();
+
+            // 3D 震動特效
+            tile1.userData.state = 'error';
+            tile2.userData.state = 'error';
+            tile1.userData.shakeTimer = 0;
+            tile2.userData.shakeTimer = 0;
+
+            setTimeout(() => {
+                selectedTiles = [];
+                updateSlotsUI();
+                resBox.className = 'result-box';
+                isProcessing = false;
+            }, 800);
+        }
+    }
+
+    function updateProgressBar() {
+        const total = ADJECTIVES[currentLevel].words.length;
+        const percent = (matchedCount / total) * 100;
+        document.getElementById('progress-bar').style.width = `${percent}%`;
+    }
+
+    function updateStars() {
+        const starEl = document.getElementById('game-stars');
+        if (errors === 0) starEl.textContent = '⭐⭐⭐';
+        else if (errors <= 3) starEl.textContent = '⭐⭐☆';
+        else starEl.textContent = '⭐☆☆';
+    }
+
+    window.useHint = function() {
+        if (isProcessing) return;
+        let targetPairId = -1;
+        for (let i = 0; i < tiles.length; i++) {
+            if (tiles[i].userData.state !== 'matched' && tiles[i].parent) {
+                targetPairId = tiles[i].userData.pairId;
+                break;
+            }
+        }
+        
+        if (targetPairId !== -1) {
+            const word = ADJECTIVES[currentLevel].words[targetPairId];
+            document.getElementById('game-msg').textContent = `提示：試試找「${word}」。`;
+            speakCantonese(`試試找：${word}`);
+            
+            // 讓目標稍微跳一下
+            tiles.forEach(t => {
+                if(t.userData.pairId === targetPairId && t.userData.state === 'idle'){
+                    t.position.z += 0.5;
+                }
+            });
+        }
+    }
+
+    async function gameWin() {
+        speakCantonese("好叻呀！你完成咗呢關！");
+        await saveProgress(currentLevel, errors);
+        const modal = document.getElementById('win-modal');
+        const title = document.getElementById('modal-title');
+        const icon = document.getElementById('modal-icon');
+        const nextBtn = document.getElementById('next-level-btn');
+
+        if (errors === 0) {
+            title.textContent = '完美通關！';
+            icon.textContent = '👑';
+        } else {
+            title.textContent = '挑戰成功！';
+            icon.textContent = '🏆';
+        }
+
+        if (currentLevel < Object.keys(ADJECTIVES).length) {
+            nextBtn.style.display = 'block';
+            nextBtn.onclick = () => { closeModal(); startLevel(currentLevel + 1); };
+        } else {
+            nextBtn.style.display = 'none';
+        }
+
+        modal.classList.add('active');
+    }
+
+    window.closeModal = function() {
+        document.getElementById('win-modal').classList.remove('active');
+        exitGame();
+    }
+
+    window.exitGame = function() {
+        isGameRunning = false;
+        showScreen('screen-menu');
+        document.getElementById('bg').className = 'bg-menu';
+        if (scene) {
+            tiles.forEach(t => scene.remove(t));
+        }
+    }
+
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
+
+    // --- 初始化 ---
+    window.onload = () => {
+        initAuth();
+        // 初始化讓語音 API 準備好
+        if(window.speechSynthesis) {
+            window.speechSynthesis.getVoices();
+        }
+    };
+</script>
+
+</body>
+</html>
